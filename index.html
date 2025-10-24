@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🌿 세포쌤: 오개념 교정 챗봇 (광합성)</title>
+  <link rel="stylesheet" href="./style.css" />
+  <!-- Chart.js (교사용 대시보드용) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="./script.js" defer></script>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>🌿 세포쌤: 생성형 AI 기반 오개념 교정 챗봇 (광합성)</h1>
+      <p class="muted">수업 전(폼) → 수업 후(채팅) → 자유 질문 → 교사용 대시보드</p>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="탭">
+      <button class="tab active" data-tab="pre" role="tab" aria-selected="true">📘 수업 전 (폼)</button>
+      <button class="tab" data-tab="post" role="tab">💬 수업 후 (채팅형)</button>
+      <button class="tab" data-tab="free" role="tab">❓ 자유 질문</button>
+      <button class="tab" data-tab="dash" role="tab">👩‍🏫 교사용 대시보드</button>
+    </nav>
+
+    <!-- 📘 수업 전 (폼) -->
+    <section id="pre" class="panel active" role="tabpanel">
+      <h2>📘 수업 전 진단</h2>
+      <label>학생 이름
+        <input id="pre-name" type="text" placeholder="예: 홍길동" />
+      </label>
+
+      <div id="mcq-area" class="card"></div>
+      <div id="short-area" class="card"></div>
+
+      <div class="row">
+        <button id="pre-submit">제출하기 (수업 전)</button>
+        <span id="pre-status" class="muted"></span>
+      </div>
+
+      <pre id="pre-output" class="output" aria-live="polite"></pre>
+    </section>
+
+    <!-- 💬 수업 후 (채팅형) -->
+    <section id="post" class="panel" role="tabpanel">
+      <h2>💬 수업 후 확인</h2>
+      <p class="muted">채팅창에 먼저 <b>이름</b>을 입력하세요. → 엔터 → AI가 첫 문제를 냅니다.</p>
+
+      <div class="chat card">
+        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+        <div class="chat-input">
+          <input id="chat-message" type="text" placeholder="여기에 입력 후 Enter" />
+          <button id="chat-send">보내기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ❓ 자유 질문 -->
+    <section id="free" class="panel" role="tabpanel">
+      <h2>❓ 자유 질문</h2>
+      <label for="free-q">질문을 입력하세요</label>
+      <textarea id="free-q" rows="6" placeholder="예) 엽록체의 틸라코이드막에서 어떤 반응이 일어나나요?"></textarea>
+      <div class="row">
+        <button id="free-btn">질문하기</button>
+        <span id="free-status" class="muted"></span>
+      </div>
+      <h3>AI 답변</h3>
+      <pre id="free-a" class="output" aria-live="polite"></pre>
+    </section>
+
+    <!-- 👩‍🏫 교사용 대시보드 -->
+    <section id="dash" class="panel" role="tabpanel">
+      <h2>👩‍🏫 교사용 대시보드</h2>
+      <p class="muted">여기서는 수업 전/후 CSV들을 올려서 종합 현황을 볼 수 있어요. (로컬/수집본)</p>
+
+      <label>비밀번호
+        <input id="dash-pw" type="password" placeholder="teacher123" />
+      </label>
+      <div class="row">
+        <input id="dash-files" type="file" accept=".csv" multiple />
+        <button id="dash-load">대시보드 보기</button>
+        <span id="dash-status" class="muted"></span>
+      </div>
+
+      <div class="table-wrap">
+        <table id="dash-table">
+          <thead>
+            <tr>
+              <th>학생이름</th>
+              <th>수업전(5점)</th>
+              <th>수업후(5점)</th>
+              <th>향상도</th>
+              <th>post_file</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <canvas id="dash-chart" height="200"></canvas>
+    </section>
+
+    <footer class="footer muted">
+      <small>© 세포쌤 • HTML/CSS/JS + Netlify Functions 포팅</small>
+    </footer>
+  </main>
+</body>
+</html>
