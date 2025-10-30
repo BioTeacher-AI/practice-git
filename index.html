@@ -57,16 +57,18 @@
 
     <!-- ❓ 자유 질문 -->
     <section id="free" class="panel" role="tabpanel">
-      <h2>❓ 자유 질문</h2>
-      <label for="free-q">질문을 입력하세요</label>
-      <textarea id="free-q" rows="6" placeholder="예) 엽록체의 틸라코이드막에서 어떤 반응이 일어나나요?"></textarea>
-      <div class="row">
-        <button id="free-btn">질문하기</button>
-        <span id="free-status" class="muted"></span>
-      </div>
-      <h3>AI 답변</h3>
-      <pre id="free-a" class="output" aria-live="polite"></pre>
-    </section>
+     <h2>❓ 자유 질문 (채팅)</h2>
+     <p class="muted">여기에 자유롭게 질문하세요. 이전 대화가 계속 남습니다.</p>
+
+     <div class="chat card">
+       <div id="free-chat-log" class="chat-log" aria-live="polite"></div>
+       <div class="chat-input">
+         <input id="free-chat-input" type="text" placeholder="질문을 입력하고 Enter" />
+         <button id="free-chat-send">보내기</button>
+     </div>
+   </div>
+ </section>
+
 
     <!-- 👩‍🏫 교사용 대시보드 -->
     <section id="dash" class="panel" role="tabpanel">
@@ -74,7 +76,7 @@
       <p class="muted">여기서는 수업 전/후 CSV들을 올려서 종합 현황을 볼 수 있어요. (로컬/수집본)</p>
 
       <label>비밀번호
-        <input id="dash-pw" type="password" placeholder="teacher123" />
+        <input id="dash-pw" type="password" />
       </label>
       <div class="row">
         <input id="dash-files" type="file" accept=".csv" multiple />
