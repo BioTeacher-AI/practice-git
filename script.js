@@ -119,8 +119,7 @@ preSubmit.addEventListener("click", () => {
   }
   const allAnswers = [...mcqAnswers, ...shortAnswers];
 
-  // 점수 계산 + CSV 다운로드 + localStorage 저장
-  const mcqCorrect = scoreMCQ(allAnswers);
+  // CSV 다운로드 + localStorage 저장(점수는 표시하지 않음)
   const rows = [["문제", "답안"], ...QUESTIONS.map((q, idx) => [q.q, allAnswers[idx] || ""])];
   const filename = `${name}_pre.csv`;
   downloadCSV(filename, rows);
@@ -129,10 +128,12 @@ preSubmit.addEventListener("click", () => {
   const key = `cellsam_pre_${name}`;
   localStorage.setItem(key, JSON.stringify({ name, answers: allAnswers, ts: Date.now() }));
 
-  preOutput.textContent = `✅ 수업 전 진단 제출 완료: ${name}\n객관식 정답 수: ${mcqCorrect}/5\n파일 저장(다운로드됨): ${filename}`;
+  // ✅ 사용자 출력(점수/정답 수 미표시)
+  preOutput.textContent = "✅ 수고하셨습니다. 제출이 완료되었습니다.";
   preStatus.textContent = "저장 완료";
   setTimeout(() => (preStatus.textContent = ""), 1500);
 });
+
 
 /*****************
  * 💬 수업 후 (채팅형)
@@ -266,30 +267,71 @@ chatMsg.addEventListener("keydown", (e) => {
 });
 
 /*****************
- * ❓ 자유 질문
+ * ❓ 자유 질문 (채팅형, 로그 영구 저장)
  *****************/
-const freeQ = document.getElementById("free-q");
-const freeBtn = document.getElementById("free-btn");
-const freeA = document.getElementById("free-a");
-const freeStatus = document.getElementById("free-status");
+const FREE_HISTORY_KEY = "cellsam_free_chat_history";
+const freeLog = document.getElementById("free-chat-log");
+const freeInput = document.getElementById("free-chat-input");
+const freeSend = document.getElementById("free-chat-send");
 
-freeBtn.addEventListener("click", async () => {
-  const text = (freeQ.value || "").trim();
-  if (!text) {
-    freeA.textContent = "질문을 입력해 주세요.";
-    return;
-  }
-  freeStatus.textContent = "⏳ 처리 중...";
-  freeA.textContent = "";
+function loadFreeHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(FREE_HISTORY_KEY) || "[]");
+  } catch { return []; }
+}
+function saveFreeHistory(hist) {
+  localStorage.setItem(FREE_HISTORY_KEY, JSON.stringify(hist.slice(-100))); // 최근 100개까지만
+}
+function appendFreeMsg(text, who = "ai") {
+  const item = el("div", { class: `msg ${who}` },
+    el("span", { class: "bubble" }, text)
+  );
+  freeLog.append(item);
+  freeLog.scrollTop = freeLog.scrollHeight;
+}
+function renderFreeHistory() {
+  freeLog.innerHTML = "";
+  const hist = loadFreeHistory();
+  hist.forEach(m => appendFreeMsg(m.text, m.who));
+}
+
+// 최초 렌더
+renderFreeHistory();
+
+async function handleFreeSend() {
+  const text = (freeInput.value || "").trim();
+  if (!text) return;
+
+  // 내 메시지 표시 + 저장
+  appendFreeMsg(text, "me");
+  const hist = loadFreeHistory();
+  hist.push({ who: "me", text, t: Date.now() });
+  saveFreeHistory(hist);
+  freeInput.value = "";
+
   try {
     const { reply } = await askOpenAI({ mode: "free", topic: TOPIC, message: text });
-    freeA.textContent = reply || "(빈 응답)";
+    appendFreeMsg(reply || "(빈 응답)", "ai");
+    const h2 = loadFreeHistory();
+    h2.push({ who: "ai", text: reply || "(빈 응답)", t: Date.now() });
+    saveFreeHistory(h2);
   } catch (e) {
-    freeA.textContent = `오류: ${e.message}`;
-  } finally {
-    freeStatus.textContent = "";
+    const msg = "오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
+    appendFreeMsg(msg, "ai");
+    const h2 = loadFreeHistory();
+    h2.push({ who: "ai", text: msg, t: Date.now() });
+    saveFreeHistory(h2);
+  }
+}
+
+freeSend.addEventListener("click", handleFreeSend);
+freeInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleFreeSend();
   }
 });
+
 
 /*****************
  * 👩‍🏫 교사용 대시보드
@@ -353,53 +395,90 @@ dashLoad.addEventListener("click", async () => {
   }
 
   dashStatus.textContent = "⏳ 분석 중...";
-  const map = new Map(); // name -> { pre:score|"-", post:score|"-", postFile:"" }
 
-  // 파일 이름 규칙: {name}_pre.csv / {name}_post_YYYYMMDD...csv
+  // name -> { pre:{score, answers[]}, post:{score, answers[], file}, latestPostFile }
+  const map = new Map();
+
+  function extractName(filename) { return filename.split("_")[0]; }
+  function answersFromRows(rows) {
+    // rows: [["문제","답안"], ["Q","A"], ...]
+    const out = [];
+    for (let i = 1; i < rows.length; i++) out.push((rows[i][1] || "").trim());
+    return out;
+  }
+
   for (const f of files) {
     const text = await f.text();
     const rows = parseCSV(text);
-    if (!rows.length) continue;
+    if (rows.length < 2) continue;
 
-    // 학생 이름 추출
-    let student = f.name.split("_")[0];
-
-    // 점수 계산
-    const score = computeScoreFromCSV(rows);
-
-    if (!map.has(student)) map.set(student, { pre: "-", post: "-", postFile: "" });
+    const student = extractName(f.name);
+    if (!map.has(student)) map.set(student, { pre:null, post:null, latestPostFile:"" });
     const rec = map.get(student);
 
+    const ans = answersFromRows(rows);
+    const score = scoreMCQ(ans);
+
     if (isPreFile(f.name)) {
-      rec.pre = score;
+      rec.pre = { score, answers: ans };
     } else if (isPostFile(f.name)) {
-      rec.post = score;
-      // 가장 최신 파일 고르기(문자열 비교로 충분)
-      if (!rec.postFile || f.name > rec.postFile) rec.postFile = f.name;
+      // 최신 post 파일만 유지
+      if (!rec.latestPostFile || f.name > rec.latestPostFile) {
+        rec.latestPostFile = f.name;
+        rec.post = { score, answers: ans, file: f.name };
+      }
     }
   }
 
-  // 테이블 렌더
+  // 테이블 렌더 (세부 답안은 details로)
   dashTbody.innerHTML = "";
   const labels = [];
   const preData = [];
   const postData = [];
+
   for (const [student, rec] of Array.from(map.entries()).sort((a,b)=>a[0].localeCompare(b[0],'ko'))) {
-    const imp = (Number.isInteger(rec.post) && Number.isInteger(rec.pre)) ? (rec.post - rec.pre) : "";
+    const preScore = (rec.pre && Number.isInteger(rec.pre.score)) ? rec.pre.score : null;
+    const postScore = (rec.post && Number.isInteger(rec.post.score)) ? rec.post.score : null;
+    const imp = (Number.isInteger(preScore) && Number.isInteger(postScore)) ? (postScore - preScore) : null;
+
+    // 세부답안 HTML
+    const preAns = rec.pre?.answers || [];
+    const postAns = rec.post?.answers || [];
+    const detailHTML = `
+      <details>
+        <summary>보기</summary>
+        <div style="padding:8px 0;">
+          <strong>수업 전 답안</strong>
+          <ol style="margin:6px 0 10px 18px;">
+            ${QUESTIONS.map((q, i)=>`<li>${q.q}<br/><em>답:</em> ${preAns[i] ?? "-"}</li>`).join("")}
+          </ol>
+          <strong>수업 후 답안</strong>
+          <ol style="margin:6px 0 0 18px;">
+            ${QUESTIONS.map((q, i)=>`<li>${q.q}<br/><em>답:</em> ${postAns[i] ?? "-"}</li>`).join("")}
+          </ol>
+        </div>
+      </details>
+    `;
+
     const tr = el("tr", {},
       el("td", {}, student),
-      el("td", {}, Number.isInteger(rec.pre) ? String(rec.pre) : "-"),
-      el("td", {}, Number.isInteger(rec.post) ? String(rec.post) : "-"),
-      el("td", {}, imp === "" ? "-" : String(imp)),
-      el("td", {}, rec.postFile || "-")
+      el("td", {}, Number.isInteger(preScore) ? String(preScore) : "-"),
+      el("td", {}, Number.isInteger(postScore) ? String(postScore) : "-"),
+      el("td", {}, (imp===null) ? "-" : String(imp)),
+      el("td", {}, rec.post?.file || "-")
     );
+
+    // 마지막 셀에 details를 덧붙이기
+    tr.lastChild.appendChild((()=>{ const d=document.createElement("div"); d.innerHTML = detailHTML; return d.firstElementChild;})());
+
     dashTbody.append(tr);
+
     labels.push(student);
-    preData.push(Number.isInteger(rec.pre) ? rec.pre : null);
-    postData.push(Number.isInteger(rec.post) ? rec.post : null);
+    preData.push(Number.isInteger(preScore) ? preScore : null);
+    postData.push(Number.isInteger(postScore) ? postScore : null);
   }
 
-  // 차트
+  // 차트 갱신
   if (dashChart) dashChart.destroy();
   dashChart = new Chart(dashChartEl, {
     type: "bar",
@@ -419,3 +498,4 @@ dashLoad.addEventListener("click", async () => {
   dashStatus.textContent = "완료";
   setTimeout(()=>dashStatus.textContent="",1500);
 });
+
